@@ -7,7 +7,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "orders") // "order" is a SQL reserved keyword
+@Table(name = "orders")
 @Getter
 @Setter
 @NoArgsConstructor
