@@ -39,7 +39,7 @@ jobs:
           cache: maven
 
       - name: Run unit tests
-        run: ./mvnw test -B
+        run: mvn test -B
 
   # ──────────────────────────────────────────
   # JOB 2 — Build & Deploy (main branch only)
