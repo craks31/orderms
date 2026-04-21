@@ -15,9 +15,9 @@ env:
   AWS_REGION:        us-east-2                          # ← your RDS region
   ECR_REPOSITORY:    raks/backms                      # ← your ECR repo name
   ECS_CLUSTER:       dolphin-raks-backms1                    # ← your ECS cluster name
-  ECS_SERVICE:       order-service-svc                  # ← your ECS service name
-  CONTAINER_NAME:    order-service                      # ← container name in task definition
-  TASK_DEFINITION:   order-service-td                   # ← your ECS task definition family name
+  ECS_SERVICE:       raks-orderms-service-y7gz6kk8        # ← your ECS service name
+  CONTAINER_NAME:    raks-orderms-service                      # ← container name in task definition
+  TASK_DEFINITION:   raks-orderms                   # ← your ECS task definition family name
 
 jobs:
   # ──────────────────────────────────────────
@@ -64,12 +64,16 @@ jobs:
           role-to-assume: arn:aws:iam::381155823218:role/github-actions-role-raks
           aws-region: ${{ env.AWS_REGION }}
 
-      # ── Step 2: Login to Amazon ECR ─────────────────────────────────────────
+      # ── Step 2: Build JAR ────────────────────────────────────────────────────
+      - name: Build JAR with Maven
+        run: mvn clean package -DskipTests -B
+
+      # ── Step 3: Login to Amazon ECR ─────────────────────────────────────────
       - name: Login to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      # ── Step 3: Build, tag, and push Docker image to ECR ────────────────────
+      # ── Step 4: Build, tag, and push Docker image to ECR ────────────────────
       - name: Build, tag & push image to ECR
         id: build-image
         env:
@@ -79,3 +83,29 @@ jobs:
           docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
           echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
+
+      # ── Step 5: Download current task definition ─────────────────────────────
+      - name: Download current task definition
+        run: |
+          aws ecs describe-task-definition \
+          --task-definition ${{ env.TASK_DEFINITION }} \
+          --query taskDefinition \
+          > task-definition.json
+
+      # ── Step 6: Render new task definition with updated image ────────────────
+      - name: Render new task definition with updated image
+        id: render-task-def
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: task-definition.json
+          container-name: ${{ env.CONTAINER_NAME }}
+          image: ${{ steps.build-image.outputs.image }}
+
+      # ── Step 7: Deploy new task definition to ECS ────────────────────────────
+      - name: Deploy to Amazon ECS
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+        with:
+          task-definition: ${{ steps.render-task-def.outputs.task-definition }}
+          service: ${{ env.ECS_SERVICE }}
+          cluster: ${{ env.ECS_CLUSTER }}
+          wait-for-service-stability: true

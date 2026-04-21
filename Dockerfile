@@ -23,7 +23,7 @@ WORKDIR /app
 COPY --from=builder /build/target/*.jar app.jar
 
 # 4. Expose the port your Spring Boot app is running on (8081 from your logs)
-EXPOSE 8081
+EXPOSE 8080
 
 # 5. Start the application with container-aware memory limits
 ENTRYPOINT ["java", \
